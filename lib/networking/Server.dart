@@ -11,6 +11,7 @@ import 'package:server/model/game/Game.dart';
 import 'package:server/model/game/GameConfig.dart';
 import 'package:server/model/game/Player.dart';
 import 'package:server/model/game/Throw.dart';
+import 'package:http/http.dart' as http;
 
 import 'User.dart';
 
@@ -29,8 +30,7 @@ class Server {
           var user = User(ws);
           user.connection.ws.listen(
                 (json) {
-                  print(json);
-                  print(' ');
+                  print('$json\r\n');
                   handleMessage(json, user);
                 },
             onDone: () => print('[+]Done :)'),
@@ -71,9 +71,20 @@ class Server {
     }
   }
 
-  void onServerJoin(User user, String userId) {
-    // TODO check if id exists on FireBase
-    user.id = userId;
+  void onServerJoin(User user, String userId) async {
+    var response = await fetchRegisteredUsers(userId);
+
+    if(response.statusCode == 200) {
+      user.id = userId;
+    } else {
+      // TODO remove user from users and close ws connection
+      print('unregisterd user opened Websocket to this server');
+    }
+
+  }
+
+  Future<http.Response> fetchRegisteredUsers(String userId)  {
+     return http.get('https://firestore.googleapis.com/v1/projects/dartcounter-91fe2/databases/(default)/documents/users/$userId');
   }
 
   void onCreateGame(User user) {
@@ -95,8 +106,6 @@ class Server {
 
   void onPerformThrow(User user, Throw t) {
     Game game = gameOf(user);
-    print('HALLO');
-    print(game.currentTurn.user == user);
     if(game != null) {
       if(game.currentTurn.user == user) {
         game.performThrow(t);
@@ -107,8 +116,6 @@ class Server {
 
   void onUndoThrow(User user) {
     Game game = gameOf(user);
-    print('HALLO');
-    print(game.currentTurn.user == user);
     if(game != null) {
       if(game.currentTurn.user == user) {
         game.undoThrow();
